@@ -36,11 +36,15 @@ import Text.URI (Authority)
 
 import qualified Control.Monad.Except    as Except
 import qualified Grace.Interpret         as Interpret
+import qualified Grace.Normalize         as Normalize
+import qualified Grace.Pretty            as Pretty
 import qualified Data.List.NonEmpty      as NonEmpty
 import qualified Data.Maybe              as Unsafe (fromJust)
 import qualified Data.Text               as Text
 import qualified Data.Text.Lazy          as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy.Encoding
+import qualified Prettyprinter
+import qualified Prettyprinter.Render.Text
 import qualified System.Environment      as Environment
 import qualified System.IO.Error         as Error
 import qualified System.Process.Typed    as Process
@@ -69,7 +73,7 @@ defaultResolver
      more than one path components. I.e. a valid URI looks like @env:///NAME@.
 -}
 envResolver :: Resolver
-envResolver = Resolver \case
+envResolver = Resolver \_ -> \case
     uri@URI.URI{ URI.uriScheme = Just (URI.unRText -> "env") } -> do
         case URI.uriAuthority uri of
             Right auth | auth /= emptyAuthority -> throw EnvInvalidURI
@@ -115,7 +119,7 @@ instance Exception EnvResolverError where
      It will fail if the URI has an authority component.
 -}
 fileResolver :: Resolver
-fileResolver = Resolver \case
+fileResolver = Resolver \_ -> \case
     uri@URI.URI{ URI.uriScheme = Just (URI.unRText -> "file") } -> do
         case URI.uriAuthority uri of
             Right auth | auth /= emptyAuthority -> throw FileInvalidURI
@@ -160,13 +164,18 @@ instance Exception FileResolverError where
      It will fail if the URI has an authority component.
 -}
 externalResolver :: Resolver
-externalResolver = Resolver \case
+externalResolver = Resolver \maybeMetadata -> \case
     uri@URI.URI{ URI.uriScheme = Just scheme } -> handleDoesNotExist do
         let cmd = "grace-resolver-" <> Text.unpack (URI.unRText scheme)
 
         let args = [URI.renderStr uri]
 
-        let pc = Process.proc cmd args
+        let metadata' = case maybeMetadata of
+                Nothing -> mempty
+                Just metadata -> prettyMetadata metadata
+
+        let pc  = Process.setStdin (Process.byteStringInput metadata')
+                $ Process.proc cmd args
 
         bytes <- Process.readProcessStdout_ pc
 
@@ -189,6 +198,13 @@ externalResolver = Resolver \case
             if Error.isDoesNotExistError e
                 then return Nothing
                 else throw e
+
+        prettyMetadata
+            = Text.Lazy.Encoding.encodeUtf8
+            . Prettyprinter.Render.Text.renderLazy
+            . Prettyprinter.layoutCompact
+            . Pretty.pretty
+            . Normalize.quote []
 
 -- | Errors raised by `externalResolver`
 data ExternalResolverError = ExternalFailedDecodeStdout UnicodeException

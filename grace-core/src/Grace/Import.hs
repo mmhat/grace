@@ -18,9 +18,11 @@ module Grace.Import
     ) where
 
 import Control.Exception.Safe (Exception(..), throw)
-import Grace.Location (Location)
+import Grace.Location (Location, Offset)
 import Grace.Pretty (Pretty(..))
 import Grace.Syntax (Syntax)
+import Grace.Value (Value)
+import Prettyprinter ((<+>))
 import Text.URI (URI)
 
 {- | A reference to external source code that will be imported by the
@@ -28,14 +30,15 @@ import Text.URI (URI)
 -}
 data Import
     = File FilePath
-    | URI URI
+    | URI URI (Maybe (Syntax Offset Import))
 
 instance Pretty Import where
     pretty (File file) = pretty file
-    pretty (URI uri) = pretty uri
+    pretty (URI uri Nothing) = pretty uri
+    pretty (URI uri (Just metadata)) = pretty uri <+> "with" <+> pretty metadata
 
 -- | Type of the callback function used to resolve URI imports
-type ImportCallback = URI -> IO (Syntax Location Import)
+type ImportCallback = Maybe Value -> URI -> IO (Syntax Location Import)
 
 {- | A resolver for an URI.
 
@@ -53,24 +56,25 @@ type ImportCallback = URI -> IO (Syntax Location Import)
        as fast as possible.
 
      * Exceptions thrown in resolvers will be caught and rethrown as an
-       `ImportError` by the interpreter.
+       `ImportError` by the interpreter. The error will contain the URI so there
+       is no need to include in your exception.
 -}
-newtype Resolver = Resolver { runResolver :: URI -> IO (Maybe (Syntax Location Import)) }
+newtype Resolver = Resolver { runResolver :: Maybe Value -> URI -> IO (Maybe (Syntax Location Import)) }
 
 instance Semigroup Resolver where
-    x <> y = Resolver \uri -> do
-        maybeResult <- runResolver x uri
+    x <> y = Resolver \metadata uri -> do
+        maybeResult <- runResolver x metadata uri
         case maybeResult of
-            Nothing -> runResolver y uri
+            Nothing -> runResolver y metadata uri
             _ -> return maybeResult
 
 instance Monoid Resolver where
-    mempty = Resolver (const (return Nothing))
+    mempty = Resolver (\_ _ -> return Nothing)
 
 -- | Convert a resolver to a callback function
 resolverToCallback :: Resolver -> ImportCallback
-resolverToCallback resolver uri = do
-    maybeResult <- runResolver resolver uri
+resolverToCallback resolver metadata uri = do
+    maybeResult <- runResolver resolver metadata uri
     case maybeResult of
         Nothing -> throw UnsupportedURI
         Just result -> return result

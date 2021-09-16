@@ -24,8 +24,9 @@ import Control.Monad.Except (MonadError(..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor (Bifunctor(..))
 import Data.Generics.Product (the)
+import Grace.Import (Import)
 import Data.Text (Text)
-import Grace.Import (Import, ImportCallback)
+import Grace.Import (ImportCallback)
 import Grace.Location (Location(..))
 import Grace.Syntax (Node(..), Syntax(..))
 import Grace.Type (Type)
@@ -39,9 +40,11 @@ import qualified Data.Text.IO         as Text.IO
 import qualified Grace.Context        as Context
 import qualified Grace.Import         as Import
 import qualified Grace.Infer          as Infer
+import qualified Grace.Monotype       as Monotype
 import qualified Grace.Normalize      as Normalize
 import qualified Grace.Parser         as Parser
 import qualified Grace.Syntax         as Syntax
+import qualified Grace.Type           as Type
 import qualified System.FilePath      as FilePath
 import qualified Text.URI             as URI
 
@@ -106,14 +109,15 @@ interpretExprWith
     -> Syntax Location Import
     -> m (Type Location, Value)
 interpretExprWith resolveImport bindings maybeAnnotation directory expression = do
-    let resolve :: (MonadError InterpretError m, MonadIO m) => (Maybe (Type Location), Import) -> m (Type Location, Value)
-        resolve (maybeAnnotation', Import.File file) =
-            interpretWith resolveImport bindings maybeAnnotation' (Path path)
-          where
-            path = FilePath.normalise (directory </> file)
-        resolve (maybeAnnotation', Import.URI uri) = do
+    resolvedExpression <- flip traverse (annotate expression) \(maybeAnnotation', import_) -> case import_ of
+        Import.File file ->
+            interpretWith resolveImport bindings maybeAnnotation' input
+                where
+                    input = Path (FilePath.normalise (directory </> file))
+
+        Import.URI uri Nothing -> do
             eitherResult <- liftIO do
-                (Right <$> resolveImport uri) `catchAny` (return . Left)
+                (Right <$> resolveImport Nothing uri) `catchAny` (return . Left)
 
             importExpression <- case eitherResult of
                 Left e -> throwError (ImportError uri (displayException e))
@@ -123,7 +127,28 @@ interpretExprWith resolveImport bindings maybeAnnotation directory expression = 
 
             interpretExprWith resolveImport bindings maybeAnnotation' directory (first relocate importExpression)
 
-    resolvedExpression <- traverse resolve (annotate expression)
+        Import.URI uri (Just metadata) -> do
+            let locate offset = (Syntax.location expression) { offset = offset }
+
+            let locatedMetadata = first locate metadata
+
+            let annotation = Just (Type.Type
+                    { location = Syntax.location locatedMetadata
+                    , node = Type.Scalar Monotype.JSON
+                    })
+
+            (_, metadata') <- interpretExprWith resolveImport bindings annotation directory locatedMetadata
+
+            eitherResult <- liftIO do
+                (Right <$> resolveImport (Just metadata') uri) `catchAny` (return . Left)
+
+            importExpression <- case eitherResult of
+                Left e -> throwError (ImportError uri (displayException e))
+                Right result -> return result
+
+            let relocate location = location { name = Text.unpack (URI.render uri) }
+
+            interpretExprWith resolveImport bindings maybeAnnotation' directory (first relocate importExpression)
 
     let annotatedExpression =
             case maybeAnnotation of

@@ -15,6 +15,7 @@ library
                      , grace-core
                      , modern-uri
                      , mtl
+                     , prettyprinter
                      , safe-exceptions
                      , text
                      , typed-process

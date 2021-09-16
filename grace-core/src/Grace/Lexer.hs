@@ -98,6 +98,7 @@ parseToken =
             , Then         <$ symbol "then"
             , Else         <$ symbol "else"
             , Merge        <$ symbol "merge"
+            , With         <$ symbol "with"
             , Type         <$ symbol "Type"
             , Fields       <$ symbol "Fields"
             , Alternatives <$ symbol "Alternatives"
@@ -341,6 +342,7 @@ reserved =
         , "null"
         , "then"
         , "true"
+        , "with"
         ]
 
 label :: Parser Token
@@ -439,6 +441,7 @@ data Token
     | True_
     | Type
     | URI URI.URI
+    | With
     deriving stock (Eq, Show)
 
 {-| A token with offset information attached, used for reporting line and

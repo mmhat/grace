@@ -215,6 +215,7 @@ render t = case t of
     Lexer.Times            -> "*"
     Lexer.True_            -> "True"
     Lexer.URI _            -> "an URI"
+    Lexer.With             -> "with"
 
 grammar :: Grammar r (Parser r (Syntax Offset Import))
 grammar = mdo
@@ -292,7 +293,7 @@ grammar = mdo
 
             ses <- many do
                 s <- locatedToken token_
-                e <- subExpression;
+                e <- subExpression
                 return (s, e)
 
             return (foldl snoc e0 ses)
@@ -312,7 +313,8 @@ grammar = mdo
     applicationExpression <- rule
         (   do  es <- some1 fieldExpression
                 return (foldl application (NonEmpty.head es) (NonEmpty.tail es))
-        <|> do  let f location (e :| es)  = foldl application nil es
+
+        <|> do  let f location (e :| es) = foldl application nil es
                       where
                           nil = Syntax{ node = Syntax.Merge e, .. }
 
@@ -327,7 +329,10 @@ grammar = mdo
                 node = Syntax.Field l fieldOffset r
 
         record <- primitiveExpression
-        fields <- many (do token Lexer.Dot; l <- locatedRecordLabel; return l)
+        fields <- many do
+            token Lexer.Dot
+            l <- locatedRecordLabel
+            return l
 
         return (foldl (field record) record fields)
 
@@ -523,13 +528,17 @@ grammar = mdo
 
                 return (f located)
 
-        <|> do  let f (location, uri) = Syntax{..}
+        <|> do  let f (location, uri) metadata = Syntax{..}
                       where
-                        node = Syntax.Embed (Import.URI uri)
+                        node = Syntax.Embed (Import.URI uri metadata)
 
                 located <- locatedURI
+                metadata <- optional do
+                    token Lexer.With
+                    metadata <- expression
+                    return metadata
 
-                return (f located)
+                return (f located metadata)
 
         <|> do  token Lexer.OpenParenthesis
                 e <- expression
@@ -560,6 +569,7 @@ grammar = mdo
                 annotation <- fmap Just quantifiedType
                 token Lexer.Equals
                 assignment <- expression
+
                 return (f locatedLet name annotation assignment)
         )
 
@@ -576,8 +586,10 @@ grammar = mdo
     domain <- rule
         (   do  token Lexer.Type
                 return Domain.Type
+
         <|> do  token Lexer.Fields
                 return Domain.Fields
+
         <|> do  token Lexer.Alternatives
                 return Domain.Alternatives
         )
@@ -597,6 +609,7 @@ grammar = mdo
                     token Lexer.CloseParenthesis
                     token Lexer.Dot
                     return (Type.Forall, locatedForall, locatedTypeVariable, domain_)
+
             <|> do  locatedExists <- locatedToken Lexer.Exists
                     token Lexer.OpenParenthesis
                     locatedTypeVariable <- locatedLabel
@@ -640,24 +653,32 @@ grammar = mdo
     primitiveType <- rule
         (   do  location <- locatedToken Lexer.Question
                 return Type{ node = Type.TypeHole, .. }
+
         <|> do  location <- locatedToken Lexer.Bool
                 return Type{ node = Type.Scalar Monotype.Bool, .. }
+
         <|> do  location <- locatedToken Lexer.Real
                 return Type{ node = Type.Scalar Monotype.Real, .. }
+
         <|> do  location <- locatedToken Lexer.Integer
                 return Type{ node = Type.Scalar Monotype.Integer, .. }
+
         <|> do  location <- locatedToken Lexer.JSON
                 return Type{ node = Type.Scalar Monotype.JSON, .. }
+
         <|> do  location <- locatedToken Lexer.Natural
                 return Type{ node = Type.Scalar Monotype.Natural, .. }
+
         <|> do  location <- locatedToken Lexer.Text
                 return Type{ node = Type.Scalar Monotype.Text, .. }
+
         <|> do  let variable (location, name) = Type{..}
                       where
                         node = Type.VariableType name
 
                 located <- locatedLabel
                 return (variable located)
+
         <|> do  let record location fields = Type{..}
                       where
                         node = Type.Record fields
@@ -671,9 +692,12 @@ grammar = mdo
                 toFields <-
                     (   do  text_ <- recordLabel
                             pure (\fs -> Type.Fields fs (Monotype.VariableFields text_))
+
                     <|> do  token Lexer.Question
                             pure (\fs -> Type.Fields fs Monotype.HoleFields)
+
                     <|> do  pure (\fs -> Type.Fields fs Monotype.EmptyFields)
+
                     <|> do  f <- fieldType
                             pure (\fs -> Type.Fields (fs <> [ f ]) Monotype.EmptyFields)
                     )
@@ -683,6 +707,7 @@ grammar = mdo
                 token Lexer.CloseBrace
 
                 return (record locatedOpenBrace (toFields fieldTypes))
+
         <|> do  let union location alternatives = Type{..}
                       where
                         node = Type.Union alternatives
@@ -696,9 +721,12 @@ grammar = mdo
                 toAlternatives <-
                     (   do  text_ <- label
                             return (\as -> Type.Alternatives as (Monotype.VariableAlternatives text_))
+
                     <|> do  token Lexer.Question
                             pure (\as -> Type.Alternatives as Monotype.HoleAlternatives)
+
                     <|> do  pure (\as -> Type.Alternatives as Monotype.EmptyAlternatives)
+
                     <|> do  a <- alternativeType
                             return (\as -> Type.Alternatives (as <> [ a ]) Monotype.EmptyAlternatives)
                     )
@@ -707,6 +735,7 @@ grammar = mdo
 
                 token Lexer.CloseAngle
                 return (union locatedOpenAngle (toAlternatives alternativeTypes))
+
         <|> do  token Lexer.OpenParenthesis
                 t <- quantifiedType
                 token Lexer.CloseParenthesis
