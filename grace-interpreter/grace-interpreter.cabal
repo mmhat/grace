@@ -1,5 +1,5 @@
 cabal-version:       >=1.10
-name:                grace-core
+name:                grace-interpreter
 version:             1.0.0
 license-file:        LICENSE
 author:              Gabriel Gonzalez
@@ -12,34 +12,43 @@ library
   hs-source-dirs:      src
   build-depends:       base
                      , containers
-                     , Earley
+                     , filepath
                      , generic-lens
+                     , grace-core
                      , insert-ordered-containers
                      , lens
-                     , megaparsec
                      , modern-uri
                      , mtl
-                     , parser-combinators
                      , prettyprinter
                      , prettyprinter-ansi-terminal
                      , safe-exceptions
                      , scientific
                      , string-interpolate
                      , template-haskell
-                     , terminal-size
                      , text
-                     , unordered-containers
-  exposed-modules:     Grace.Domain
-                     , Grace.Existential
-                     , Grace.Import
-                     , Grace.Lexer
-                     , Grace.Location
-                     , Grace.Monotype
-                     , Grace.Parser
-                     , Grace.Pretty
-                     , Grace.Syntax
-                     , Grace.Type
-                     , Grace.Value
+  exposed-modules:     Grace.Context
+                     , Grace.Interpret
+                     , Grace.Infer
+                     , Grace.Normalize
+                     , Grace.TH
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+test-suite tasty
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  build-depends:       base
+                     , directory
+                     , filepath
+                     , grace-core
+                     , grace-interpreter
+                     , mtl
+                     , prettyprinter
+                     , tasty
+                     , tasty-hunit
+                     , tasty-silver
+                     , text
+  hs-source-dirs:      tasty
   default-language:    Haskell2010
   ghc-options:         -Wall
 
