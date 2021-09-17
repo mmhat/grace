@@ -1,5 +1,5 @@
 cabal-version:       >=1.10
-name:                grace-resolver-builtin
+name:                grace-configuration-default
 version:             1.0.0
 license-file:        LICENSE
 author:              Gabriel Gonzalez
@@ -18,7 +18,8 @@ library
                      , safe-exceptions
                      , text
                      , typed-process
-  exposed-modules:     Grace.Resolver.Builtin
+  exposed-modules:     Grace.Configuration
+                     , Grace.Resolver.Builtin
   default-language:    Haskell2010
   ghc-options:         -Wall
 
@@ -28,9 +29,9 @@ test-suite tasty
   build-depends:       base
                      , directory
                      , filepath
+                     , grace-configuration-default
                      , grace-core
                      , grace-interpreter
-                     , grace-resolver-builtin
                      , mtl
                      , prettyprinter
                      , tasty

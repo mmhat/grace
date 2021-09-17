@@ -12,9 +12,9 @@ library
   hs-source-dirs:      src
   build-depends:       base
                      , ansi-terminal
+                     , grace-configuration-default
                      , grace-core
                      , grace-interpreter
-                     , grace-resolver-builtin
                      , mtl
                      , optparse-applicative
                      , prettyprinter

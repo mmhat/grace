@@ -1,5 +1,5 @@
 packages:
     grace/grace.cabal
+    grace-configuration-default/grace-configuration-default.cabal
     grace-core/grace-core.cabal
     grace-interpreter/grace-interpreter.cabal
-    grace-resolver-builtin/grace-resolver-builtin.cabal
