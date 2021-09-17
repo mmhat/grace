@@ -1,0 +1,5 @@
+signature Grace.Configuration where
+
+import Grace.Import (ImportCallback)
+
+resolveImport :: ImportCallback

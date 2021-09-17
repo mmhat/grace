@@ -1,4 +1,4 @@
-cabal-version:       >=1.10
+cabal-version:       2.0
 name:                grace-interpreter
 version:             1.0.0
 license-file:        LICENSE
@@ -31,6 +31,15 @@ library
                      , Grace.Infer
                      , Grace.Normalize
                      , Grace.TH
+  signatures:          Grace.Configuration
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+library grace-interpreter-tasty-configuration
+  hs-source-dirs:      tasty-configuration
+  build-depends:       base
+                     , grace-core
+  exposed-modules:     Grace.Configuration
   default-language:    Haskell2010
   ghc-options:         -Wall
 
@@ -42,6 +51,7 @@ test-suite tasty
                      , filepath
                      , grace-core
                      , grace-interpreter
+                     , grace-interpreter-tasty-configuration
                      , mtl
                      , prettyprinter
                      , tasty

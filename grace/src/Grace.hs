@@ -10,7 +10,6 @@
 module Grace
     ( -- * Main
       main
-    , mainWith
     ) where
 
 import Control.Applicative (many, (<|>))
@@ -18,7 +17,6 @@ import Control.Exception (Exception(..))
 import Data.Foldable (traverse_)
 import Data.String.Interpolate (__i)
 import Data.Void (Void)
-import Grace.Import (ImportCallback)
 import Grace.Interpret (Input(..))
 import Grace.Location (Location(..))
 import Grace.Syntax (Builtin(..), Node(..), Syntax(..))
@@ -31,14 +29,12 @@ import qualified Control.Monad.Except         as Except
 import qualified Data.Text                    as Text
 import qualified Data.Text.IO                 as Text.IO
 import qualified Prettyprinter                as Pretty
-import qualified Grace.Import                 as Import
 import qualified Grace.Infer                  as Infer
 import qualified Grace.Interpret              as Interpret
 import qualified Grace.Monotype               as Monotype
 import qualified Grace.Normalize              as Normalize
 import qualified Grace.Parser                 as Parser
 import qualified Grace.Pretty
-import qualified Grace.Resolver.Builtin       as Resolver
 import qualified Grace.Syntax                 as Syntax
 import qualified Grace.Type                   as Type
 import qualified Grace.Value                  as Value
@@ -174,11 +170,7 @@ throws (Right result) = do
 
 -- | Command-line entrypoint
 main :: IO ()
-main = mainWith (Import.resolverToCallback Resolver.defaultResolver)
-
--- | Command-line entrypoint
-mainWith :: ImportCallback -> IO ()
-mainWith settings = do
+main = do
     options <- Options.execParser parserInfo
 
     case options of
@@ -191,7 +183,7 @@ mainWith settings = do
                     return (Path file)
 
             eitherResult <- do
-                Except.runExceptT (Interpret.interpretWith settings [] Nothing input)
+                Except.runExceptT (Interpret.interpret Nothing input)
 
             (inferred, value) <- throws eitherResult
 
@@ -230,7 +222,7 @@ mainWith settings = do
             let expected = Type{ node = Type.Scalar Monotype.Text, .. }
 
             eitherResult <- do
-                Except.runExceptT (Interpret.interpretWith settings [] (Just expected) input)
+                Except.runExceptT (Interpret.interpret (Just expected) input)
 
             (_, value) <- throws eitherResult
 
@@ -309,4 +301,4 @@ mainWith settings = do
                     traverse_ (\b -> Text.IO.putStrLn "" >> displayBuiltin b) bs
 
         Repl{} -> do
-            Repl.replWith settings
+            Repl.repl

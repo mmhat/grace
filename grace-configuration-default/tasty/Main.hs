@@ -9,14 +9,12 @@ import Data.Text (Text)
 import Grace.Interpret (Input(..), InterpretError)
 import Grace.Location (Location(..))
 import Grace.Pretty (Pretty(..))
-import Grace.Resolver.Builtin
 import Grace.Type (Type(..))
 import System.FilePath ((</>))
 import Test.Tasty (TestTree)
 
 import qualified Control.Monad.Except as Except
 import qualified Data.Text            as Text
-import qualified Grace.Import         as Import
 import qualified Grace.Interpret      as Interpret
 import qualified Grace.Monotype       as Monotype
 import qualified Grace.Normalize      as Normalize
@@ -38,12 +36,7 @@ pretty_ x =
         (pretty x <> Pretty.hardline)
 
 interpret :: Input -> IO (Either InterpretError (Type Location, Value.Value))
-interpret input = Except.runExceptT (Interpret.interpretWith importCb [] Nothing input)
-    where
-        importCb = Import.resolverToCallback
-            (  envResolver
-            <> fileResolver
-            )
+interpret input = Except.runExceptT (Interpret.interpret Nothing input)
 
 fileToTestTree :: FilePath -> IO TestTree
 fileToTestTree prefix = do

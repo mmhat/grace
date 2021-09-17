@@ -24,6 +24,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor (Bifunctor(..))
 import Data.Generics.Product (the)
 import Data.Text (Text)
+import Grace.Configuration (resolveImport)
 import Grace.Import (Import, ImportCallback)
 import Grace.Location (Location(..))
 import Grace.Parser (Input(..))
@@ -55,20 +56,18 @@ interpret
     -- ^ Optional expected type for the input
     -> Input
     -> m (Type Location, Value)
-interpret = interpretWith (Import.resolverToCallback mempty) []
+interpret = interpretWith []
 
 -- | Like `interpret`, but accepts a custom list of bindings
 interpretWith
     :: (MonadError InterpretError m, MonadIO m)
-    => ImportCallback
-    -- ^ How to resolve URI imports
-    -> [(Text, Type Location, Value)]
+    => [(Text, Type Location, Value)]
     -- ^ @(name, type, value)@ for each custom binding
     -> Maybe (Type Location)
     -- ^ Optional expected type for the input
     -> Input
     -> m (Type Location, Value)
-interpretWith resolveImport bindings maybeAnnotation input = do
+interpretWith bindings maybeAnnotation input = do
     let directory = case input of
             Path file -> FilePath.takeDirectory file
             Code _ _  -> "."
@@ -79,16 +78,14 @@ interpretWith resolveImport bindings maybeAnnotation input = do
         Left e -> throwError (ParseError e)
         Right expression -> return expression
 
-    interpretExprWith resolveImport bindings maybeAnnotation directory expression
+    interpretExprWith bindings maybeAnnotation directory expression
 
 {- | Like `interpretWith`, but takes a pre-parsed expression instead of some
      source code
 -}
 interpretExprWith
     :: (MonadError InterpretError m, MonadIO m)
-    => ImportCallback
-    -- ^ How to resolve URI imports
-    -> [(Text, Type Location, Value)]
+    => [(Text, Type Location, Value)]
     -- ^ @(name, type, value)@ for each custom binding
     -> Maybe (Type Location)
     -- ^ Optional expected type for the input
@@ -96,10 +93,10 @@ interpretExprWith
     -- ^ The base directory used when resolving filepath imports of relative paths
     -> Syntax Location Import
     -> m (Type Location, Value)
-interpretExprWith resolveImport bindings maybeAnnotation directory expression = do
+interpretExprWith bindings maybeAnnotation directory expression = do
     let resolve :: (MonadError InterpretError m, MonadIO m) => (Maybe (Type Location), Import) -> m (Type Location, Value)
         resolve (maybeAnnotation', Import.File file) =
-            interpretWith resolveImport bindings maybeAnnotation' (Path path)
+            interpretWith bindings maybeAnnotation' (Path path)
           where
             path = FilePath.normalise (directory </> file)
         resolve (maybeAnnotation', Import.URI uri) = do
@@ -111,7 +108,7 @@ interpretExprWith resolveImport bindings maybeAnnotation directory expression = 
 
             let relocate location = location { name = Text.unpack (URI.render uri) }
 
-            interpretExprWith resolveImport bindings maybeAnnotation' directory (first relocate importExpression)
+            interpretExprWith bindings maybeAnnotation' directory (first relocate importExpression)
 
     resolvedExpression <- traverse resolve (annotate expression)
 
